@@ -1,5 +1,17 @@
 # OMS (Order Management System)
 
+～memo～
+H2 ver2データベース接続
+ URL: http://localhost:8080/h2-console
+  - JDBC URL: jdbc:h2:file:./data/oms_db
+  - User Name: sa
+  - Password: （空欄）
+
+dbeaver
+ URL: jdbc:h2:file:C:/Users/{user名}/source/repos/ClaudeCode/OMS/backend/oms-api/data/oms_db
+  - User Name: sa
+  - Password: （空欄）
+
 資産運用会社向けの本格的な発注管理システム
 
 ## 🎯 プロジェクトの状態

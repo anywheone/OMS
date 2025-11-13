@@ -21,13 +21,13 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 
     <!-- Caching -->
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
 
     <!-- WebSocket Client -->
     <PackageReference Include="System.Net.WebSockets.Client" Version="4.3.2" />
 
     <!-- Logging -->
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
   </ItemGroup>
 
   <ItemGroup>

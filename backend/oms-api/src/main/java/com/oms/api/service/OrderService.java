@@ -79,6 +79,16 @@ public class OrderService {
     }
 
     /**
+     * 全注文一覧取得
+     */
+    public List<OrderDto> getAllOrders() {
+        List<Order> orders = orderRepository.findAll();
+        return orders.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * フィルター条件で注文検索
      */
     public List<OrderDto> findOrdersByFilters(

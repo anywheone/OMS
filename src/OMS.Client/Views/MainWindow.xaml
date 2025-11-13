@@ -1,0 +1,235 @@
+<Window x:Class="OMS.Client.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:prism="http://prismlibrary.com/"
+        prism:ViewModelLocator.AutoWireViewModel="True"
+        Title="OMS - Order Management System"
+        Height="800"
+        Width="1400"
+        MinHeight="600"
+        MinWidth="1000"
+        WindowStartupLocation="Manual"
+        WindowState="Normal"
+        ResizeMode="CanResize"
+        Background="{StaticResource BackgroundBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ヘッダー -->
+        <Border Grid.Row="0"
+                Background="{StaticResource PrimaryBrush}"
+                Padding="20,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="OMS - Order Management System"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Column="2"
+                           Text="デモモード"
+                           FontSize="14"
+                           Foreground="White"
+                           VerticalAlignment="Center"
+                           Margin="20,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- メインコンテンツエリア -->
+        <Grid Grid.Row="1" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左側: 注文入力パネル -->
+            <Border Grid.Column="0"
+                    Style="{StaticResource CardStyle}"
+                    Margin="0,0,5,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <TextBlock Text="新規注文"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Margin="0,0,0,15"/>
+
+                        <!-- 銘柄コード -->
+                        <TextBlock Text="銘柄コード" FontWeight="SemiBold" Margin="0,5,0,3"/>
+                        <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                 Text="{Binding SecurityId, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <!-- 売買区分 -->
+                        <TextBlock Text="売買区分" FontWeight="SemiBold" Margin="0,10,0,3"/>
+                        <ComboBox Style="{StaticResource InputComboBoxStyle}"
+                                  SelectedValue="{Binding Side}"
+                                  SelectedValuePath="Tag">
+                            <ComboBoxItem Content="買い" Tag="BUY" IsSelected="True"/>
+                            <ComboBoxItem Content="売り" Tag="SELL"/>
+                        </ComboBox>
+
+                        <!-- 注文タイプ -->
+                        <TextBlock Text="注文タイプ" FontWeight="SemiBold" Margin="0,10,0,3"/>
+                        <ComboBox Style="{StaticResource InputComboBoxStyle}"
+                                  SelectedValue="{Binding OrderType}"
+                                  SelectedValuePath="Tag">
+                            <ComboBoxItem Content="成行" Tag="MARKET" IsSelected="True"/>
+                            <ComboBoxItem Content="指値" Tag="LIMIT"/>
+                            <ComboBoxItem Content="逆指値" Tag="STOP"/>
+                            <ComboBoxItem Content="逆指値付指値" Tag="STOP_LIMIT"/>
+                        </ComboBox>
+
+                        <!-- 数量 -->
+                        <TextBlock Text="数量" FontWeight="SemiBold" Margin="0,10,0,3"/>
+                        <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                 Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <!-- 価格 -->
+                        <TextBlock Text="価格" FontWeight="SemiBold" Margin="0,10,0,3"/>
+                        <TextBox Style="{StaticResource InputTextBoxStyle}"
+                                 Text="{Binding Price, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding IsPriceEnabled}"/>
+
+                        <!-- 有効期限 -->
+                        <TextBlock Text="有効期限" FontWeight="SemiBold" Margin="0,10,0,3"/>
+                        <ComboBox Style="{StaticResource InputComboBoxStyle}"
+                                  SelectedValue="{Binding TimeInForce}"
+                                  SelectedValuePath="Tag">
+                            <ComboBoxItem Content="当日中" Tag="DAY" IsSelected="True"/>
+                            <ComboBoxItem Content="無期限" Tag="GTC"/>
+                            <ComboBoxItem Content="即時執行" Tag="IOC"/>
+                            <ComboBoxItem Content="全量約定" Tag="FOK"/>
+                        </ComboBox>
+
+                        <!-- 注文ボタン -->
+                        <Button Content="注文実行"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Command="{Binding PlaceOrderCommand}"
+                                Margin="0,20,0,10"/>
+
+                        <Button Content="クリア"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding ClearCommand}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- 右側: タブコントロール -->
+            <Border Grid.Column="1"
+                    Style="{StaticResource CardStyle}"
+                    Margin="5,0,0,0">
+                <TabControl>
+                    <!-- 注文一覧タブ -->
+                    <TabItem Header="注文一覧">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- ツールバー -->
+                            <Border Grid.Row="0" Padding="10" Background="#F5F5F5">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="更新"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Command="{Binding RefreshOrdersCommand}"
+                                            Margin="0,0,5,0"/>
+                                    <Button Content="キャンセル" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,5,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- データグリッド -->
+                            <DataGrid Grid.Row="1"
+                                      Style="{StaticResource DataGridStyle}"
+                                      ItemsSource="{Binding Orders}"
+                                      AutoGenerateColumns="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="注文No" Binding="{Binding OrderNo}" Width="100"/>
+                                    <DataGridTextColumn Header="日時" Binding="{Binding OrderDate, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}" Width="130"/>
+                                    <DataGridTextColumn Header="銘柄" Binding="{Binding SecurityId}" Width="80"/>
+                                    <DataGridTextColumn Header="売買" Binding="{Binding Side}" Width="60"/>
+                                    <DataGridTextColumn Header="タイプ" Binding="{Binding OrderType}" Width="80"/>
+                                    <DataGridTextColumn Header="数量" Binding="{Binding Quantity}" Width="80"/>
+                                    <DataGridTextColumn Header="価格" Binding="{Binding Price}" Width="80"/>
+                                    <DataGridTextColumn Header="約定数" Binding="{Binding FilledQuantity}" Width="80"/>
+                                    <DataGridTextColumn Header="ステータス" Binding="{Binding Status}" Width="100"/>
+                                    <DataGridTextColumn Header="備考" Binding="{Binding Notes}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- 約定履歴タブ -->
+                    <TabItem Header="約定履歴">
+                        <DataGrid x:Name="ExecutionsDataGrid"
+                                  Style="{StaticResource DataGridStyle}"
+                                  AutoGenerateColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="約定No" Width="100"/>
+                                <DataGridTextColumn Header="注文No" Width="100"/>
+                                <DataGridTextColumn Header="日時" Width="130"/>
+                                <DataGridTextColumn Header="銘柄" Width="80"/>
+                                <DataGridTextColumn Header="売買" Width="60"/>
+                                <DataGridTextColumn Header="数量" Width="80"/>
+                                <DataGridTextColumn Header="単価" Width="80"/>
+                                <DataGridTextColumn Header="金額" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+
+                    <!-- ポジションタブ -->
+                    <TabItem Header="ポジション">
+                        <DataGrid x:Name="PositionsDataGrid"
+                                  Style="{StaticResource DataGridStyle}"
+                                  AutoGenerateColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="銘柄" Width="100"/>
+                                <DataGridTextColumn Header="数量" Width="100"/>
+                                <DataGridTextColumn Header="平均取得単価" Width="120"/>
+                                <DataGridTextColumn Header="現在値" Width="100"/>
+                                <DataGridTextColumn Header="評価額" Width="120"/>
+                                <DataGridTextColumn Header="損益" Width="120"/>
+                                <DataGridTextColumn Header="損益率" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+
+        <!-- ステータスバー -->
+        <Border Grid.Row="2"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="10,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="Ready"
+                           FontSize="12"
+                           VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Column="1"
+                           Text="Version 1.0.0"
+                           FontSize="12"
+                           VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

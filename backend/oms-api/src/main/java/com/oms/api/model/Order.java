@@ -102,20 +102,3 @@ public class Order {
                 .multiply(new BigDecimal("100"));
     }
 }
-
-// Enums
-enum OrderSide {
-    BUY, SELL
-}
-
-enum OrderType {
-    MARKET, LIMIT, STOP, STOP_LIMIT
-}
-
-enum TimeInForce {
-    DAY, GTC, IOC, FOK
-}
-
-enum OrderStatus {
-    NEW, PARTIAL, FILLED, CANCELED, REJECTED, EXPIRED
-}

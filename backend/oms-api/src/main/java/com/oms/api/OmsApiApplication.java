@@ -14,7 +14,7 @@ import org.modelmapper.ModelMapper;
 public class OmsApiApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(OmsApiApplication.java, args);
+        SpringApplication.run(OmsApiApplication.class, args);
     }
 
     /**

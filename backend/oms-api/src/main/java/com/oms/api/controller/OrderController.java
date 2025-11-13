@@ -53,7 +53,7 @@ public class OrderController {
     @PostMapping
     @Operation(summary = "新規発注", description = "新しい注文を作成します")
     public ResponseEntity<ApiResponse<OrderDto>> createOrder(
-            @RequestParam Long userId,
+            @RequestParam(required = false, defaultValue = "1") Long userId,
             @Valid @RequestBody CreateOrderDto dto) {
         try {
             log.info("POST /api/orders - userId: {}", userId);
@@ -101,7 +101,7 @@ public class OrderController {
     @GetMapping
     @Operation(summary = "発注一覧取得", description = "フィルター条件に合致する注文一覧を取得します")
     public ResponseEntity<ApiResponse<List<OrderDto>>> getOrders(
-            @RequestParam Long userId,
+            @RequestParam(required = false) Long userId,
             @RequestParam(required = false) Long securityId,
             @RequestParam(required = false) List<OrderStatus> statuses,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
@@ -111,12 +111,17 @@ public class OrderController {
                     userId, securityId, statuses, startDate, endDate);
 
             List<OrderDto> orders;
-            if (securityId != null || statuses != null || startDate != null || endDate != null) {
-                // フィルター検索
-                orders = orderService.findOrdersByFilters(userId, securityId, statuses, startDate, endDate);
+            if (userId != null) {
+                if (securityId != null || statuses != null || startDate != null || endDate != null) {
+                    // フィルター検索
+                    orders = orderService.findOrdersByFilters(userId, securityId, statuses, startDate, endDate);
+                } else {
+                    // 全件取得
+                    orders = orderService.getOrdersByUserId(userId);
+                }
             } else {
-                // 全件取得
-                orders = orderService.getOrdersByUserId(userId);
+                // userId指定なしの場合は全ユーザーの注文を取得
+                orders = orderService.getAllOrders();
             }
 
             return ResponseEntity.ok(ApiResponse.success(orders));

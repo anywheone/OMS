@@ -1,13 +1,13 @@
 using System.Windows;
+using System.IO;
+using System.Net.Http;
 using Prism.Ioc;
-using Prism.Unity;
+using Prism.DryIoc;
 using OMS.Client.Views;
 using OMS.Core.Interfaces;
-using OMS.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using System.IO;
 
 namespace OMS.Client;
 
@@ -64,15 +64,10 @@ public partial class App : PrismApplication
         });
 
         // サービスの登録
-        containerRegistry.Register<IOrderService, OrderService>();
-        containerRegistry.Register<IExecutionService, ExecutionService>();
-        containerRegistry.Register<ISecurityService, SecurityService>();
-        containerRegistry.Register<IPositionService, PositionService>();
-        containerRegistry.Register<IPortfolioService, PortfolioService>();
-        containerRegistry.RegisterSingleton<INotificationService, NotificationService>();
+        containerRegistry.RegisterSingleton<OMS.Client.Services.OrderService>();
 
-        // ViewModelsの登録（必要に応じて）
-        // containerRegistry.Register<OrderEntryViewModel>();
+        // ViewModelsの登録
+        containerRegistry.Register<ViewModels.MainWindowViewModel>();
 
         // Viewsの登録
         containerRegistry.RegisterForNavigation<MainWindow>();

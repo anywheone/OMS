@@ -2,7 +2,23 @@
   "permissions": {
     "allow": [
       "Bash(mkdir:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet run)",
+      "Bash(taskkill:*)",
+      "Bash(powershell:*)",
+      "Bash(dotnet run:*)",
+      "Bash(mvn spring-boot:run:*)",
+      "Bash(set \"JAVA_HOME=C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.16.8-hotspot\")",
+      "Bash(mvnw.cmd spring-boot:run:*)",
+      "Bash(jps:*)",
+      "Bash(dir:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(del \"C:\\Users\\tatsu\\source\\repos\\ClaudeCode\\OMS\\backend\\oms-api\\data\\oms_db.lock.db\")",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
