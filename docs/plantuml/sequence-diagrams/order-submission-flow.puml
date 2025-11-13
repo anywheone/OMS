@@ -1,0 +1,169 @@
+@startuml Order_Submission_Flow
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 200
+skinparam sequenceParticipant underline
+
+actor "トレーダー" as Trader
+participant "OrderEntryControl" as UI
+participant "OrderEntryViewModel" as ViewModel
+participant "ValidationService" as Validation
+participant "OrderService" as OrderSvc
+participant "EventAggregator" as Events
+participant "Spring Boot\nREST API" as API
+participant "MySQL\nDatabase" as DB
+participant "NotificationService" as Notification
+
+title 発注処理フロー
+
+== 銘柄検索 ==
+Trader -> UI: 銘柄コード入力\n(例: "7203")
+activate UI
+UI -> ViewModel: SearchSecurityCommand.Execute("7203")
+activate ViewModel
+ViewModel -> OrderSvc: SearchSecuritiesAsync("7203")
+activate OrderSvc
+OrderSvc -> API: GET /api/securities/search?query=7203
+activate API
+API -> DB: SELECT * FROM securities\nWHERE security_code LIKE '7203%'
+activate DB
+DB --> API: 銘柄リスト
+deactivate DB
+API --> OrderSvc: SecurityDto[]
+deactivate API
+OrderSvc --> ViewModel: List<Security>
+deactivate OrderSvc
+ViewModel --> UI: Securities更新
+deactivate ViewModel
+UI --> Trader: 検索結果表示
+deactivate UI
+
+== 発注入力 ==
+Trader -> UI: 発注情報入力\n(銘柄、数量、価格等)
+activate UI
+UI -> ViewModel: プロパティ更新\n(Quantity, Price, etc.)
+activate ViewModel
+ViewModel -> ViewModel: OnPropertyChanged()
+ViewModel --> UI: バインディング更新
+deactivate ViewModel
+UI --> Trader: 入力内容反映
+deactivate UI
+
+== リアルタイムバリデーション ==
+Trader -> UI: 数量入力完了
+activate UI
+UI -> ViewModel: Quantity = 1000
+activate ViewModel
+ViewModel -> Validation: ValidateQuantity(security, 1000)
+activate Validation
+Validation -> Validation: ロットサイズチェック\n(100株単位)
+alt バリデーションエラー
+    Validation --> ViewModel: ValidationResult(false,\n"100株単位で入力してください")
+    ViewModel --> UI: ValidationErrors更新
+    UI --> Trader: エラーメッセージ表示\n(赤枠表示)
+else バリデーション成功
+    Validation --> ViewModel: ValidationResult(true)
+    deactivate Validation
+    ViewModel --> UI: ValidationErrors.Clear()
+    deactivate ViewModel
+    UI --> Trader: 正常表示(緑チェック)
+    deactivate UI
+end
+
+== 発注確認 ==
+Trader -> UI: [発注]ボタンクリック
+activate UI
+UI -> ViewModel: SubmitOrderCommand.Execute()
+activate ViewModel
+
+' 最終バリデーション
+ViewModel -> Validation: ValidateOrderAsync(orderDto)
+activate Validation
+Validation -> Validation: 全項目チェック
+Validation -> Validation: ビジネスルールチェック
+Validation --> ViewModel: ValidationResult
+deactivate Validation
+
+alt バリデーションエラー
+    ViewModel -> UI: ShowValidationSummary(errors)
+    UI --> Trader: エラーサマリー表示
+    deactivate ViewModel
+    deactivate UI
+else バリデーション成功
+    ' リスクチェック
+    ViewModel -> Validation: PerformRiskCheckAsync(orderDto, user)
+    activate Validation
+    Validation -> Validation: ポジション制限チェック
+    Validation -> Validation: 信用取引余力チェック
+    Validation -> Validation: 取引制限チェック
+    Validation --> ViewModel: RiskCheckResult[]
+    deactivate Validation
+
+    alt リスクチェックで警告
+        ViewModel -> UI: ShowOrderValidationDialog(order, risks)
+        UI --> Trader: 確認ダイアログ表示\n(リスク警告含む)
+        Trader -> UI: [確認]クリック
+    end
+
+    ' 発注送信
+    ViewModel -> UI: LoadingOverlay表示
+    UI -> UI: IsLoading = true
+
+    ViewModel -> OrderSvc: CreateOrderAsync(orderDto)
+    activate OrderSvc
+    OrderSvc -> API: POST /api/orders\n(OrderDto in JSON)
+    activate API
+
+    API -> DB: BEGIN TRANSACTION
+    activate DB
+    API -> DB: INSERT INTO orders\n(user_id, security_id, ...)
+    DB --> API: order_id = 12345
+    API -> DB: INSERT INTO order_audit_log\n(order_id, action='CREATE')
+    API -> DB: COMMIT
+    deactivate DB
+
+    API --> OrderSvc: OrderResult(success=true,\norderId=12345)
+    deactivate API
+    OrderSvc --> ViewModel: OrderResult
+    deactivate OrderSvc
+
+    ' 成功処理
+    ViewModel -> Events: Publish(OrderCreatedEvent)
+    activate Events
+    Events -> Events: 全サブスクライバーに通知
+    deactivate Events
+
+    ViewModel -> Notification: PublishNotificationAsync(\n"発注完了", order)
+    activate Notification
+    Notification -> Events: Publish(NotificationEvent)
+    deactivate Notification
+
+    ViewModel -> UI: LoadingOverlay非表示
+    UI -> UI: IsLoading = false
+    ViewModel -> UI: ShowSuccessMessage(\n"発注が完了しました")
+    deactivate ViewModel
+    UI --> Trader: 成功メッセージ表示
+    deactivate UI
+end
+
+== リアルタイム更新 ==
+Events -> "OrderListViewModel" as OrderList: OnOrderCreated(event)
+activate OrderList
+OrderList -> OrderList: Orders.Add(newOrder)
+OrderList -> "OrderListGrid" as Grid: NotifyCollectionChanged
+activate Grid
+Grid -> Grid: グリッド再描画
+Grid --> Trader: 発注一覧に新規注文表示
+deactivate Grid
+deactivate OrderList
+
+note over Trader, DB
+  <b>ポイント</b>
+  1. リアルタイムバリデーションで即座にエラー検出
+  2. リスクチェックで警告表示
+  3. 発注後はEventAggregatorで全画面に通知
+  4. トランザクション管理で整合性担保
+end note
+
+@enduml

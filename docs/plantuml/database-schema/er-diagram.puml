@@ -1,0 +1,198 @@
+@startuml OMS_ER_Diagram
+!define Table(name,desc) class name as "desc" << (T,#FFAAAA) >>
+!define primary_key(x) <b>PK: x</b>
+!define foreign_key(x) <color:red>FK: x</color>
+!define unique(x) <color:green>UK: x</color>
+
+' スキンパラメータ
+skinparam linetype ortho
+skinparam class {
+    BackgroundColor #F0F0F0
+    BorderColor #333333
+    ArrowColor #333333
+}
+
+' ユーザーマスタ
+Table(users, "users\nユーザーマスタ") {
+    primary_key(user_id : BIGINT)
+    --
+    username : VARCHAR(50)
+    email : VARCHAR(100)
+    password_hash : VARCHAR(255)
+    full_name : VARCHAR(100)
+    department : VARCHAR(50)
+    role : ENUM('TRADER','MANAGER','ADMIN')
+    is_active : BOOLEAN
+    created_at : DATETIME
+    updated_at : DATETIME
+}
+
+' 銘柄マスタ
+Table(securities, "securities\n銘柄マスタ") {
+    primary_key(security_id : BIGINT)
+    --
+    unique(security_code : VARCHAR(20))
+    security_name : VARCHAR(200)
+    security_type : ENUM('STOCK','BOND','ETF','REIT')
+    market : VARCHAR(50)
+    sector : VARCHAR(50)
+    currency : VARCHAR(3)
+    lot_size : INT
+    tick_size : DECIMAL(10,4)
+    is_active : BOOLEAN
+    created_at : DATETIME
+    updated_at : DATETIME
+}
+
+' 発注テーブル
+Table(orders, "orders\n発注テーブル") {
+    primary_key(order_id : BIGINT)
+    --
+    foreign_key(user_id : BIGINT)
+    foreign_key(security_id : BIGINT)
+    order_no : VARCHAR(50)
+    side : ENUM('BUY','SELL')
+    order_type : ENUM('MARKET','LIMIT','STOP','STOP_LIMIT')
+    quantity : DECIMAL(18,4)
+    price : DECIMAL(18,4)
+    stop_price : DECIMAL(18,4)
+    time_in_force : ENUM('DAY','GTC','IOC','FOK')
+    status : ENUM('NEW','PARTIAL','FILLED','CANCELED','REJECTED','EXPIRED')
+    filled_quantity : DECIMAL(18,4)
+    average_price : DECIMAL(18,4)
+    commission : DECIMAL(18,4)
+    order_date : DATETIME
+    valid_until : DATETIME
+    notes : TEXT
+    created_at : DATETIME
+    updated_at : DATETIME
+}
+
+' 約定テーブル
+Table(executions, "executions\n約定テーブル") {
+    primary_key(execution_id : BIGINT)
+    --
+    foreign_key(order_id : BIGINT)
+    foreign_key(security_id : BIGINT)
+    execution_no : VARCHAR(50)
+    execution_price : DECIMAL(18,4)
+    execution_quantity : DECIMAL(18,4)
+    commission : DECIMAL(18,4)
+    execution_date : DATETIME
+    settlement_date : DATE
+    contra_broker : VARCHAR(100)
+    notes : TEXT
+    created_at : DATETIME
+}
+
+' ポジションテーブル
+Table(positions, "positions\nポジションテーブル") {
+    primary_key(position_id : BIGINT)
+    --
+    foreign_key(user_id : BIGINT)
+    foreign_key(security_id : BIGINT)
+    quantity : DECIMAL(18,4)
+    average_cost : DECIMAL(18,4)
+    current_price : DECIMAL(18,4)
+    unrealized_pnl : DECIMAL(18,4)
+    realized_pnl : DECIMAL(18,4)
+    last_updated : DATETIME
+    created_at : DATETIME
+    updated_at : DATETIME
+}
+
+' 取引履歴テーブル
+Table(trade_history, "trade_history\n取引履歴テーブル") {
+    primary_key(trade_id : BIGINT)
+    --
+    foreign_key(order_id : BIGINT)
+    foreign_key(execution_id : BIGINT)
+    foreign_key(user_id : BIGINT)
+    foreign_key(security_id : BIGINT)
+    trade_date : DATE
+    side : ENUM('BUY','SELL')
+    quantity : DECIMAL(18,4)
+    price : DECIMAL(18,4)
+    amount : DECIMAL(18,4)
+    commission : DECIMAL(18,4)
+    net_amount : DECIMAL(18,4)
+    pnl : DECIMAL(18,4)
+    notes : TEXT
+    created_at : DATETIME
+}
+
+' お気に入り銘柄
+Table(favorite_securities, "favorite_securities\nお気に入り銘柄") {
+    primary_key(favorite_id : BIGINT)
+    --
+    foreign_key(user_id : BIGINT)
+    foreign_key(security_id : BIGINT)
+    sort_order : INT
+    created_at : DATETIME
+}
+
+' 注文履歴（監査ログ）
+Table(order_audit_log, "order_audit_log\n注文履歴ログ") {
+    primary_key(audit_id : BIGINT)
+    --
+    foreign_key(order_id : BIGINT)
+    foreign_key(user_id : BIGINT)
+    action : ENUM('CREATE','UPDATE','CANCEL','FILL','REJECT')
+    old_status : VARCHAR(50)
+    new_status : VARCHAR(50)
+    change_details : JSON
+    ip_address : VARCHAR(45)
+    created_at : DATETIME
+}
+
+' 検索条件プリセット
+Table(search_presets, "search_presets\n検索条件プリセット") {
+    primary_key(preset_id : BIGINT)
+    --
+    foreign_key(user_id : BIGINT)
+    preset_name : VARCHAR(100)
+    search_criteria : JSON
+    is_default : BOOLEAN
+    created_at : DATETIME
+    updated_at : DATETIME
+}
+
+' リレーション
+orders "N" --> "1" users : user_id
+orders "N" --> "1" securities : security_id
+executions "N" --> "1" orders : order_id
+executions "N" --> "1" securities : security_id
+positions "N" --> "1" users : user_id
+positions "N" --> "1" securities : security_id
+trade_history "N" --> "1" orders : order_id
+trade_history "N" --> "1" executions : execution_id
+trade_history "N" --> "1" users : user_id
+trade_history "N" --> "1" securities : security_id
+favorite_securities "N" --> "1" users : user_id
+favorite_securities "N" --> "1" securities : security_id
+order_audit_log "N" --> "1" orders : order_id
+order_audit_log "N" --> "1" users : user_id
+search_presets "N" --> "1" users : user_id
+
+note right of orders
+  <b>発注ステータス遷移</b>
+  NEW → PARTIAL → FILLED
+       → CANCELED
+       → REJECTED
+       → EXPIRED
+end note
+
+note right of executions
+  <b>約定処理</b>
+  1つの注文(order)に対して
+  複数の約定(execution)が
+  紐付く可能性がある
+end note
+
+note right of positions
+  <b>ポジション計算</b>
+  - 平均コスト = 総取得額 / 総数量
+  - 評価損益 = (現在価格 - 平均コスト) × 数量
+end note
+
+@enduml

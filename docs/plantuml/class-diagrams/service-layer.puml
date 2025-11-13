@@ -1,0 +1,371 @@
+@startuml Service_Layer_Architecture
+
+skinparam class {
+    BackgroundColor #F0F0F0
+    BorderColor #333333
+    ArrowColor #666666
+}
+
+skinparam package {
+    BackgroundColor #E8EAF6
+    BorderColor #5C6BC0
+}
+
+package "Interfaces (OMS.Core.Interfaces)" {
+    interface IOrderService {
+        +CreateOrderAsync(order : OrderDto) : Task<OrderResult>
+        +GetOrdersAsync(filter : OrderFilter) : Task<List<Order>>
+        +GetOrderByIdAsync(orderId : long) : Task<Order>
+        +UpdateOrderAsync(orderId : long, order : OrderDto) : Task<OrderResult>
+        +CancelOrderAsync(orderId : long) : Task<OrderResult>
+        +GetOrderHistoryAsync(orderId : long) : Task<List<OrderAudit>>
+    }
+
+    interface IExecutionService {
+        +GetExecutionsAsync(filter : ExecutionFilter) : Task<List<Execution>>
+        +GetExecutionByIdAsync(executionId : long) : Task<Execution>
+        +GetExecutionsByOrderIdAsync(orderId : long) : Task<List<Execution>>
+    }
+
+    interface ISecurityService {
+        +SearchSecuritiesAsync(query : string) : Task<List<Security>>
+        +GetSecurityByIdAsync(securityId : long) : Task<Security>
+        +GetSecurityByCodeAsync(code : string) : Task<Security>
+        +GetSecuritiesByMarketAsync(market : string) : Task<List<Security>>
+        +GetSecuritiesBySectorAsync(sector : string) : Task<List<Security>>
+    }
+
+    interface IPositionService {
+        +GetPositionsAsync(userId : long) : Task<List<Position>>
+        +GetPositionBySecurityAsync(userId : long, securityId : long) : Task<Position>
+        +UpdatePositionAsync(position : Position) : Task
+        +CalculateUnrealizedPnL(position : Position) : decimal
+    }
+
+    interface IPortfolioService {
+        +GetPortfolioSummaryAsync(userId : long) : Task<PortfolioSummary>
+        +GetAssetAllocationAsync(userId : long) : Task<List<AllocationItem>>
+        +GetPortfolioTimeSeriesAsync(userId : long, range : DateRange) : Task<List<PortfolioSnapshot>>
+        +GetRiskMetricsAsync(userId : long) : Task<RiskMetrics>
+    }
+
+    interface ITradeService {
+        +GetTradeHistoryAsync(filter : TradeFilter) : Task<PagedResult<Trade>>
+        +GetTradeByIdAsync(tradeId : long) : Task<Trade>
+        +ExportTradesToCsvAsync(filter : TradeFilter, filePath : string) : Task
+    }
+
+    interface IMarketDataService {
+        +GetCurrentPriceAsync(securityId : long) : Task<decimal>
+        +GetPriceHistoryAsync(securityId : long, range : DateRange) : Task<List<PricePoint>>
+        +GetMarketStatusAsync() : Task<MarketStatus>
+        +GetMajorIndicesAsync() : Task<List<Index>>
+        +SubscribeToRealTimeUpdates(securityId : long, callback : Action<PriceUpdate>)
+        +UnsubscribeFromRealTimeUpdates(securityId : long)
+    }
+
+    interface INotificationService {
+        +PublishNotificationAsync(notification : Notification) : Task
+        +GetNotificationsAsync(userId : long) : Task<List<Notification>>
+        +MarkAsReadAsync(notificationId : long) : Task
+        +DismissNotificationAsync(notificationId : long) : Task
+        +GetUnreadCountAsync(userId : long) : Task<int>
+    }
+
+    interface IValidationService {
+        +ValidateOrderAsync(order : OrderDto) : Task<ValidationResult>
+        +PerformRiskCheckAsync(order : OrderDto, user : User) : Task<List<RiskCheckResult>>
+        +ValidateQuantity(security : Security, quantity : decimal) : bool
+        +ValidatePrice(security : Security, price : decimal) : bool
+    }
+
+    interface IAuthenticationService {
+        +LoginAsync(username : string, password : string) : Task<AuthResult>
+        +LogoutAsync() : Task
+        +GetCurrentUserAsync() : Task<User>
+        +RefreshTokenAsync() : Task<string>
+    }
+
+    interface IUserSettingsService {
+        +GetUserSettingsAsync(userId : long) : Task<UserSettings>
+        +SaveUserSettingsAsync(settings : UserSettings) : Task
+        +GetFilterPresetsAsync(userId : long) : Task<List<FilterPreset>>
+        +SaveFilterPresetAsync(preset : FilterPreset) : Task
+        +DeleteFilterPresetAsync(presetId : long) : Task
+    }
+
+    interface IFavoriteSecurityService {
+        +GetFavoritesAsync(userId : long) : Task<List<Security>>
+        +AddToFavoritesAsync(userId : long, securityId : long) : Task
+        +RemoveFromFavoritesAsync(userId : long, securityId : long) : Task
+        +UpdateSortOrderAsync(userId : long, favorites : List<FavoriteSecurity>) : Task
+    }
+}
+
+package "Service Implementations (OMS.Infrastructure.Services)" {
+    class OrderService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -logger : ILogger
+        --
+        +CreateOrderAsync(order : OrderDto) : Task<OrderResult>
+        +GetOrdersAsync(filter : OrderFilter) : Task<List<Order>>
+        +GetOrderByIdAsync(orderId : long) : Task<Order>
+        +UpdateOrderAsync(orderId : long, order : OrderDto) : Task<OrderResult>
+        +CancelOrderAsync(orderId : long) : Task<OrderResult>
+        +GetOrderHistoryAsync(orderId : long) : Task<List<OrderAudit>>
+        --
+        -BuildQueryString(filter : OrderFilter) : string
+        -HandleApiError(response : HttpResponseMessage)
+    }
+
+    class ExecutionService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -logger : ILogger
+        --
+        +GetExecutionsAsync(filter : ExecutionFilter) : Task<List<Execution>>
+        +GetExecutionByIdAsync(executionId : long) : Task<Execution>
+        +GetExecutionsByOrderIdAsync(orderId : long) : Task<List<Execution>>
+    }
+
+    class SecurityService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -cache : IMemoryCache
+        -logger : ILogger
+        --
+        +SearchSecuritiesAsync(query : string) : Task<List<Security>>
+        +GetSecurityByIdAsync(securityId : long) : Task<Security>
+        +GetSecurityByCodeAsync(code : string) : Task<Security>
+        +GetSecuritiesByMarketAsync(market : string) : Task<List<Security>>
+        +GetSecuritiesBySectorAsync(sector : string) : Task<List<Security>>
+        --
+        -GetFromCacheOrApi<T>(key : string, apiCall : Func<Task<T>>) : Task<T>
+    }
+
+    class PositionService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -marketDataService : IMarketDataService
+        -logger : ILogger
+        --
+        +GetPositionsAsync(userId : long) : Task<List<Position>>
+        +GetPositionBySecurityAsync(userId : long, securityId : long) : Task<Position>
+        +UpdatePositionAsync(position : Position) : Task
+        +CalculateUnrealizedPnL(position : Position) : decimal
+    }
+
+    class PortfolioService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -positionService : IPositionService
+        -marketDataService : IMarketDataService
+        -logger : ILogger
+        --
+        +GetPortfolioSummaryAsync(userId : long) : Task<PortfolioSummary>
+        +GetAssetAllocationAsync(userId : long) : Task<List<AllocationItem>>
+        +GetPortfolioTimeSeriesAsync(userId : long, range : DateRange) : Task<List<PortfolioSnapshot>>
+        +GetRiskMetricsAsync(userId : long) : Task<RiskMetrics>
+        --
+        -CalculateMetrics(positions : List<Position>) : PortfolioMetrics
+    }
+
+    class TradeService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -logger : ILogger
+        --
+        +GetTradeHistoryAsync(filter : TradeFilter) : Task<PagedResult<Trade>>
+        +GetTradeByIdAsync(tradeId : long) : Task<Trade>
+        +ExportTradesToCsvAsync(filter : TradeFilter, filePath : string) : Task
+        --
+        -GenerateCsv(trades : List<Trade>) : string
+    }
+
+    class MarketDataService {
+        -webSocketClient : IWebSocketClient
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -subscriptions : ConcurrentDictionary<long, List<Action>>
+        -logger : ILogger
+        --
+        +GetCurrentPriceAsync(securityId : long) : Task<decimal>
+        +GetPriceHistoryAsync(securityId : long, range : DateRange) : Task<List<PricePoint>>
+        +GetMarketStatusAsync() : Task<MarketStatus>
+        +GetMajorIndicesAsync() : Task<List<Index>>
+        +SubscribeToRealTimeUpdates(securityId : long, callback : Action<PriceUpdate>)
+        +UnsubscribeFromRealTimeUpdates(securityId : long)
+        --
+        -OnPriceUpdateReceived(update : PriceUpdate)
+        -ConnectWebSocket()
+    }
+
+    class NotificationService {
+        -eventAggregator : IEventAggregator
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -logger : ILogger
+        --
+        +PublishNotificationAsync(notification : Notification) : Task
+        +GetNotificationsAsync(userId : long) : Task<List<Notification>>
+        +MarkAsReadAsync(notificationId : long) : Task
+        +DismissNotificationAsync(notificationId : long) : Task
+        +GetUnreadCountAsync(userId : long) : Task<int>
+        --
+        -PublishToEventAggregator(notification : Notification)
+    }
+
+    class ValidationService {
+        -securityService : ISecurityService
+        -positionService : IPositionService
+        -logger : ILogger
+        --
+        +ValidateOrderAsync(order : OrderDto) : Task<ValidationResult>
+        +PerformRiskCheckAsync(order : OrderDto, user : User) : Task<List<RiskCheckResult>>
+        +ValidateQuantity(security : Security, quantity : decimal) : bool
+        +ValidatePrice(security : Security, price : decimal) : bool
+        --
+        -CheckLotSize(security : Security, quantity : decimal) : bool
+        -CheckTickSize(security : Security, price : decimal) : bool
+        -CheckPositionLimit(user : User, order : OrderDto) : Task<bool>
+    }
+
+    class AuthenticationService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -tokenStorage : ITokenStorage
+        -logger : ILogger
+        --
+        +LoginAsync(username : string, password : string) : Task<AuthResult>
+        +LogoutAsync() : Task
+        +GetCurrentUserAsync() : Task<User>
+        +RefreshTokenAsync() : Task<string>
+        --
+        -StoreToken(token : string)
+        -ClearToken()
+    }
+
+    class UserSettingsService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -localStorage : ILocalStorage
+        -logger : ILogger
+        --
+        +GetUserSettingsAsync(userId : long) : Task<UserSettings>
+        +SaveUserSettingsAsync(settings : UserSettings) : Task
+        +GetFilterPresetsAsync(userId : long) : Task<List<FilterPreset>>
+        +SaveFilterPresetAsync(preset : FilterPreset) : Task
+        +DeleteFilterPresetAsync(presetId : long) : Task
+    }
+
+    class FavoriteSecurityService {
+        -httpClient : IHttpClient
+        -apiBaseUrl : string
+        -logger : ILogger
+        --
+        +GetFavoritesAsync(userId : long) : Task<List<Security>>
+        +AddToFavoritesAsync(userId : long, securityId : long) : Task
+        +RemoveFromFavoritesAsync(userId : long, securityId : long) : Task
+        +UpdateSortOrderAsync(userId : long, favorites : List<FavoriteSecurity>) : Task
+    }
+}
+
+package "Infrastructure Support" {
+    interface IHttpClient {
+        +GetAsync<T>(url : string) : Task<T>
+        +PostAsync<T>(url : string, content : object) : Task<T>
+        +PutAsync<T>(url : string, content : object) : Task<T>
+        +DeleteAsync(url : string) : Task
+    }
+
+    class OmsHttpClient {
+        -client : HttpClient
+        -authService : IAuthenticationService
+        --
+        +GetAsync<T>(url : string) : Task<T>
+        +PostAsync<T>(url : string, content : object) : Task<T>
+        +PutAsync<T>(url : string, content : object) : Task<T>
+        +DeleteAsync(url : string) : Task
+        --
+        -AddAuthHeader(request : HttpRequestMessage)
+        -HandleResponse<T>(response : HttpResponseMessage) : Task<T>
+    }
+
+    interface IWebSocketClient {
+        +ConnectAsync(url : string) : Task
+        +SendAsync(message : string) : Task
+        +OnMessageReceived : event
+        +DisconnectAsync() : Task
+    }
+
+    interface IMemoryCache {
+        +Get<T>(key : string) : T
+        +Set<T>(key : string, value : T, expiration : TimeSpan)
+        +Remove(key : string)
+    }
+
+    interface ILocalStorage {
+        +GetItem<T>(key : string) : T
+        +SetItem<T>(key : string, value : T)
+        +RemoveItem(key : string)
+    }
+}
+
+' 実装関係
+IOrderService <|.. OrderService
+IExecutionService <|.. ExecutionService
+ISecurityService <|.. SecurityService
+IPositionService <|.. PositionService
+IPortfolioService <|.. PortfolioService
+ITradeService <|.. TradeService
+IMarketDataService <|.. MarketDataService
+INotificationService <|.. NotificationService
+IValidationService <|.. ValidationService
+IAuthenticationService <|.. AuthenticationService
+IUserSettingsService <|.. UserSettingsService
+IFavoriteSecurityService <|.. FavoriteSecurityService
+IHttpClient <|.. OmsHttpClient
+
+' 依存関係
+OrderService --> IHttpClient
+ExecutionService --> IHttpClient
+SecurityService --> IHttpClient
+SecurityService --> IMemoryCache
+PositionService --> IHttpClient
+PositionService --> IMarketDataService
+PortfolioService --> IHttpClient
+PortfolioService --> IPositionService
+PortfolioService --> IMarketDataService
+TradeService --> IHttpClient
+MarketDataService --> IHttpClient
+MarketDataService --> IWebSocketClient
+NotificationService --> IHttpClient
+ValidationService --> ISecurityService
+ValidationService --> IPositionService
+AuthenticationService --> IHttpClient
+UserSettingsService --> IHttpClient
+UserSettingsService --> ILocalStorage
+FavoriteSecurityService --> IHttpClient
+
+note right of IOrderService
+  <b>発注サービス</b>
+  REST APIと通信して
+  発注処理を実行
+end note
+
+note right of MarketDataService
+  <b>市場データサービス</b>
+  WebSocketでリアルタイム
+  価格更新を受信
+end note
+
+note bottom of ValidationService
+  <b>バリデーションサービス</b>
+  - ロットサイズチェック
+  - ティックサイズチェック
+  - ポジション制限チェック
+  - リスクチェック
+end note
+
+@enduml

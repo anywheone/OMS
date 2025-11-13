@@ -1,0 +1,396 @@
+@startuml UserControl_Hierarchy
+!define CONTROL_COLOR #E3F2FD
+!define UTILITY_COLOR #FFF9C4
+!define ORDER_COLOR #C8E6C9
+!define GRID_COLOR #FFCCBC
+!define PORTFOLIO_COLOR #D1C4E9
+!define SEARCH_COLOR #B2DFDB
+!define STATUS_COLOR #F8BBD0
+!define DETAIL_COLOR #FFECB3
+
+skinparam class {
+    BackgroundColor #F0F0F0
+    BorderColor #333333
+    ArrowColor #666666
+}
+
+' 基底クラス
+class UserControl <<WPF>> {
+    #DataContext : object
+    #Resources : ResourceDictionary
+    #OnInitialized()
+    #OnLoaded()
+}
+
+' ベースコントロール（共通機能）
+abstract class BaseOmsControl {
+    #Logger : ILogger
+    #EventAggregator : IEventAggregator
+    #Region : IRegion
+    +{abstract} Initialize()
+    +{abstract} Cleanup()
+    #PublishEvent(event)
+    #SubscribeEvent(handler)
+}
+
+UserControl <|-- BaseOmsControl
+
+package "Utilities（ユーティリティ）" <<Rectangle>> #UTILITY_COLOR {
+    class NumericUpDownControl {
+        +Value : decimal
+        +Minimum : decimal
+        +Maximum : decimal
+        +Increment : decimal
+        +DecimalPlaces : int
+        +FormatString : string
+        +ShowUpDownButtons : bool
+        --
+        +ValueChanged : event
+        -OnIncrease()
+        -OnDecrease()
+        -ValidateValue()
+    }
+
+    class DateRangePickerControl {
+        +StartDate : DateTime?
+        +EndDate : DateTime?
+        +MinDate : DateTime
+        +MaxDate : DateTime
+        +PresetRanges : List<DatePreset>
+        --
+        +DateRangeChanged : event
+        -OnStartDateChanged()
+        -OnEndDateChanged()
+        -ApplyPreset(preset)
+    }
+
+    class ValidationSummaryControl {
+        +Errors : ObservableCollection<ValidationError>
+        +Warnings : ObservableCollection<ValidationWarning>
+        +ShowWarnings : bool
+        --
+        -OnErrorClick()
+        -NavigateToField(fieldName)
+    }
+
+    class LoadingOverlay {
+        +IsLoading : bool
+        +Message : string
+        +CanCancel : bool
+        +Progress : double
+        --
+        +CancelRequested : event
+        -OnCancel()
+    }
+
+    class ConfirmDialogControl {
+        +Title : string
+        +Message : string
+        +Icon : MessageBoxImage
+        +Buttons : MessageBoxButton
+        +Result : MessageBoxResult
+        --
+        +Show() : bool
+        -OnConfirm()
+        -OnCancel()
+    }
+
+    class CurrencyDisplayControl {
+        +Value : decimal
+        +Currency : string
+        +ShowCurrencySymbol : bool
+        +ColorizeBySign : bool
+        +DecimalPlaces : int
+        --
+        -FormatValue()
+    }
+
+    class PercentageDisplayControl {
+        +Value : decimal
+        +ShowSign : bool
+        +ShowArrow : bool
+        +ColorizeBySign : bool
+        --
+        -FormatValue()
+        -GetArrowDirection()
+    }
+
+    class StatusBadgeControl {
+        +Status : OrderStatus
+        +ShowIcon : bool
+        +ShowTooltip : bool
+        --
+        -GetBadgeColor()
+        -GetIconSource()
+    }
+}
+
+package "Orders（発注関連）" <<Rectangle>> #ORDER_COLOR {
+    class OrderEntryControl {
+        +ViewModel : OrderEntryViewModel
+        +SelectedSecurity : Security
+        +Side : OrderSide
+        +OrderType : OrderType
+        +Quantity : decimal
+        +Price : decimal
+        +TimeInForce : TimeInForce
+        --
+        +OrderSubmitted : event
+        +ValidationFailed : event
+        -OnSubmitOrder()
+        -ValidateOrder()
+        -ResetForm()
+    }
+
+    class QuickOrderPanel {
+        +ViewModel : QuickOrderViewModel
+        +QuantityPresets : List<decimal>
+        +LastOrderTemplate : Order
+        --
+        +QuickOrderExecuted : event
+        -OnPresetClick(quantity)
+        -OnRepeatLastOrder()
+    }
+
+    class OrderValidationControl {
+        +Order : Order
+        +ValidationResults : List<ValidationResult>
+        +RiskCheckResults : List<RiskCheck>
+        --
+        +Confirmed : event
+        +Cancelled : event
+        -OnConfirm()
+        -OnCancel()
+        -PerformRiskCheck()
+    }
+}
+
+package "Grids（グリッド）" <<Rectangle>> #GRID_COLOR {
+    abstract class BaseGridControl {
+        #Grid : ReoGridControl
+        #ViewModel : IGridViewModel
+        +AllowEdit : bool
+        +AllowSort : bool
+        +AllowFilter : bool
+        --
+        +{abstract} InitializeColumns()
+        +{abstract} LoadData()
+        #OnCellValueChanged()
+        #OnCellFormatting()
+        #ExportToCsv()
+    }
+
+    class OrderListGrid {
+        +Orders : ObservableCollection<Order>
+        +FilterStatus : OrderStatus[]
+        +GroupByStatus : bool
+        --
+        +OrderSelected : event
+        +OrderCancelled : event
+        +OrderModified : event
+        -OnContextMenuOpening()
+        -OnCellDoubleClick()
+        -ApplyStatusColors()
+    }
+
+    class ExecutionListGrid {
+        +Executions : ObservableCollection<Execution>
+        +ShowAggregated : bool
+        +CalculatePnL : bool
+        --
+        +ExecutionSelected : event
+        -AggregateExecutions()
+        -CalculateTotalPnL()
+    }
+
+    class TradeHistoryGrid {
+        +Trades : ObservableCollection<Trade>
+        +DateRange : DateRange
+        +EnablePaging : bool
+        +PageSize : int
+        --
+        -LoadPage(pageNumber)
+        -ShowAggregateRow()
+    }
+}
+
+package "Portfolio（ポートフォリオ）" <<Rectangle>> #PORTFOLIO_COLOR {
+    class PortfolioSummaryControl {
+        +ViewModel : PortfolioSummaryViewModel
+        +TotalAssets : decimal
+        +DailyPnL : decimal
+        +UnrealizedPnL : decimal
+        +AssetAllocation : List<AllocationItem>
+        --
+        -UpdateSummary()
+        -RenderChart()
+    }
+
+    class PositionListControl {
+        +Positions : ObservableCollection<Position>
+        +SortBy : PositionSortField
+        +FilterBySecurity : string
+        --
+        +PositionSelected : event
+        +DrillDownRequested : event
+        -CalculateMetrics()
+        -ColorizeByPnL()
+    }
+
+    class PortfolioChartControl {
+        +ChartType : ChartType
+        +TimeSeries : List<PortfolioSnapshot>
+        +ComparisonBenchmark : string
+        --
+        -RenderEquityCurve()
+        -RenderSectorAllocation()
+    }
+}
+
+package "Search（検索・フィルター）" <<Rectangle>> #SEARCH_COLOR {
+    class SecuritySearchControl {
+        +ViewModel : SecuritySearchViewModel
+        +SearchText : string
+        +Markets : List<string>
+        +Sectors : List<string>
+        +Favorites : ObservableCollection<Security>
+        --
+        +SecuritySelected : event
+        -OnSearchTextChanged()
+        -OnAddToFavorites()
+        -FilterByMarket()
+    }
+
+    class OrderFilterPanel {
+        +FilterCriteria : OrderFilterCriteria
+        +DateRange : DateRange
+        +StatusFilters : List<OrderStatus>
+        +SavedPresets : List<FilterPreset>
+        --
+        +FilterApplied : event
+        +PresetSaved : event
+        -ApplyFilter()
+        -SavePreset()
+        -LoadPreset()
+    }
+
+    class AdvancedSearchControl {
+        +SearchConditions : ObservableCollection<SearchCondition>
+        +LogicalOperator : LogicalOperator
+        --
+        +SearchExecuted : event
+        -AddCondition()
+        -RemoveCondition()
+        -ExecuteSearch()
+    }
+}
+
+package "Status（ステータス・通知）" <<Rectangle>> #STATUS_COLOR {
+    class OrderStatusControl {
+        +Order : Order
+        +ShowProgressBar : bool
+        +ShowTimeline : bool
+        --
+        -RenderStatusBadge()
+        -CalculateProgress()
+    }
+
+    class NotificationPanel {
+        +Notifications : ObservableCollection<Notification>
+        +MaxVisibleCount : int
+        +AutoHideDelay : int
+        --
+        +NotificationClicked : event
+        -OnNewNotification()
+        -OnDismiss()
+        -ShowHistory()
+    }
+
+    class MarketStatusBar {
+        +MarketStatus : MarketStatus
+        +MajorIndices : List<Index>
+        +SystemTime : DateTime
+        --
+        -UpdateMarketStatus()
+        -UpdateIndices()
+        -FormatTime()
+    }
+}
+
+package "Details（詳細表示）" <<Rectangle>> #DETAIL_COLOR {
+    class OrderDetailControl {
+        +Order : Order
+        +ShowTimeline : bool
+        +ShowRelatedExecutions : bool
+        --
+        +EditRequested : event
+        +CancelRequested : event
+        -LoadOrderHistory()
+        -LoadExecutions()
+    }
+
+    class SecurityDetailControl {
+        +Security : Security
+        +ShowChart : bool
+        +ShowNews : bool
+        --
+        -LoadSecurityInfo()
+        -RenderMiniChart()
+        -LoadNewsFeed()
+    }
+
+    class ExecutionDetailControl {
+        +Execution : Execution
+        +ShowCommissionBreakdown : bool
+        --
+        -LoadExecutionDetails()
+        -CalculateCommission()
+    }
+}
+
+' 継承関係
+BaseOmsControl <|-- NumericUpDownControl
+BaseOmsControl <|-- DateRangePickerControl
+BaseOmsControl <|-- ValidationSummaryControl
+BaseOmsControl <|-- LoadingOverlay
+BaseOmsControl <|-- ConfirmDialogControl
+BaseOmsControl <|-- CurrencyDisplayControl
+BaseOmsControl <|-- PercentageDisplayControl
+BaseOmsControl <|-- StatusBadgeControl
+BaseOmsControl <|-- OrderEntryControl
+BaseOmsControl <|-- QuickOrderPanel
+BaseOmsControl <|-- OrderValidationControl
+BaseOmsControl <|-- BaseGridControl
+BaseGridControl <|-- OrderListGrid
+BaseGridControl <|-- ExecutionListGrid
+BaseGridControl <|-- TradeHistoryGrid
+BaseOmsControl <|-- PortfolioSummaryControl
+BaseOmsControl <|-- PositionListControl
+BaseOmsControl <|-- PortfolioChartControl
+BaseOmsControl <|-- SecuritySearchControl
+BaseOmsControl <|-- OrderFilterPanel
+BaseOmsControl <|-- AdvancedSearchControl
+BaseOmsControl <|-- OrderStatusControl
+BaseOmsControl <|-- NotificationPanel
+BaseOmsControl <|-- MarketStatusBar
+BaseOmsControl <|-- OrderDetailControl
+BaseOmsControl <|-- SecurityDetailControl
+BaseOmsControl <|-- ExecutionDetailControl
+
+note right of BaseOmsControl
+  <b>共通機能</b>
+  - イベント集約
+  - ロギング
+  - リージョン管理
+  - リソース管理
+end note
+
+note bottom of OrderEntryControl
+  <b>主要機能</b>
+  - 銘柄検索（インクリメンタル）
+  - バリデーション（リアルタイム）
+  - 発注送信
+  - フォームリセット
+end note
+
+@enduml

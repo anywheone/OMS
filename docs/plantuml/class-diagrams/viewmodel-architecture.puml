@@ -1,0 +1,371 @@
+@startuml ViewModel_Architecture
+
+skinparam class {
+    BackgroundColor #F0F0F0
+    BorderColor #333333
+    ArrowColor #666666
+}
+
+' インターフェース
+interface INotifyPropertyChanged {
+    +PropertyChanged : event
+}
+
+' Prism基底クラス
+abstract class BindableBase {
+    #SetProperty<T>(ref field, value, propertyName)
+    #OnPropertyChanged(propertyName)
+}
+
+abstract class ViewModelBase {
+    #EventAggregator : IEventAggregator
+    #RegionManager : IRegionManager
+    #Logger : ILogger
+    +Title : string
+    +IsBusy : bool
+    +ErrorMessage : string
+    --
+    +{abstract} OnNavigatedTo(context)
+    +{abstract} OnNavigatedFrom(context)
+    #PublishEvent<T>(payload)
+    #SubscribeEvent<T>(action)
+    #ShowErrorMessage(message)
+    #ShowSuccessMessage(message)
+}
+
+INotifyPropertyChanged <|.. BindableBase
+BindableBase <|-- ViewModelBase
+
+' メインViewModel
+class MainWindowViewModel {
+    -orderService : IOrderService
+    -positionService : IPositionService
+    -securityService : ISecurityService
+    --
+    +CurrentUser : User
+    +DocumentPanes : ObservableCollection<PaneViewModel>
+    +ToolPanes : ObservableCollection<PaneViewModel>
+    +ActivePane : PaneViewModel
+    +StatusBarText : string
+    --
+    +OpenOrderEntryCommand : DelegateCommand
+    +OpenPortfolioCommand : DelegateCommand
+    +OpenTradeHistoryCommand : DelegateCommand
+    +RefreshCommand : DelegateCommand
+    +LogoutCommand : DelegateCommand
+    --
+    -OnOpenOrderEntry()
+    -OnOpenPortfolio()
+    -InitializeLayout()
+    -LoadUserSettings()
+}
+
+' 発注関連ViewModel
+class OrderEntryViewModel {
+    -orderService : IOrderService
+    -securityService : ISecurityService
+    -validationService : IValidationService
+    --
+    +Securities : ObservableCollection<Security>
+    +SelectedSecurity : Security
+    +Side : OrderSide
+    +OrderType : OrderType
+    +Quantity : decimal
+    +Price : decimal
+    +StopPrice : decimal
+    +TimeInForce : TimeInForce
+    +ValidationErrors : ObservableCollection<string>
+    --
+    +SubmitOrderCommand : DelegateCommand
+    +ResetFormCommand : DelegateCommand
+    +SearchSecurityCommand : DelegateCommand<string>
+    --
+    -OnSubmitOrder()
+    -ValidateOrder() : bool
+    -ResetForm()
+    -SearchSecurity(query)
+}
+
+class OrderListViewModel {
+    -orderService : IOrderService
+    -eventAggregator : IEventAggregator
+    --
+    +Orders : ObservableCollection<Order>
+    +FilteredOrders : ICollectionView
+    +SelectedOrder : Order
+    +StatusFilter : OrderStatus[]
+    +DateRangeFilter : DateRange
+    --
+    +RefreshCommand : DelegateCommand
+    +CancelOrderCommand : DelegateCommand<Order>
+    +ModifyOrderCommand : DelegateCommand<Order>
+    +ShowDetailCommand : DelegateCommand<Order>
+    +ExportCommand : DelegateCommand
+    --
+    -LoadOrders()
+    -OnOrderCancelled(order)
+    -OnOrderModified(order)
+    -ApplyFilter()
+    -SubscribeToOrderUpdates()
+}
+
+class QuickOrderViewModel {
+    -orderService : IOrderService
+    --
+    +QuantityPresets : ObservableCollection<decimal>
+    +LastOrder : Order
+    +CanRepeatLastOrder : bool
+    --
+    +QuickBuyCommand : DelegateCommand<decimal>
+    +QuickSellCommand : DelegateCommand<decimal>
+    +RepeatLastOrderCommand : DelegateCommand
+    --
+    -ExecuteQuickOrder(quantity, side)
+    -RepeatLastOrder()
+}
+
+' グリッドViewModel
+interface IGridViewModel {
+    +LoadData()
+    +RefreshData()
+    +ExportToCsv(filePath)
+}
+
+class ExecutionListViewModel {
+    -executionService : IExecutionService
+    --
+    +Executions : ObservableCollection<Execution>
+    +ShowAggregated : bool
+    +TotalPnL : decimal
+    --
+    +RefreshCommand : DelegateCommand
+    +ExportCommand : DelegateCommand
+    --
+    -LoadExecutions()
+    -AggregateExecutions()
+    -CalculatePnL()
+}
+
+class TradeHistoryViewModel {
+    -tradeService : ITradeService
+    --
+    +Trades : ObservableCollection<Trade>
+    +DateRange : DateRange
+    +CurrentPage : int
+    +TotalPages : int
+    +PageSize : int
+    --
+    +LoadPageCommand : DelegateCommand<int>
+    +ExportCommand : DelegateCommand
+    +ApplyFilterCommand : DelegateCommand
+    --
+    -LoadPage(pageNumber)
+    -ApplyFilter()
+}
+
+' ポートフォリオViewModel
+class PortfolioSummaryViewModel {
+    -portfolioService : IPortfolioService
+    -positionService : IPositionService
+    --
+    +TotalAssets : decimal
+    +DailyPnL : decimal
+    +DailyPnLPercent : decimal
+    +UnrealizedPnL : decimal
+    +UnrealizedPnLPercent : decimal
+    +RealizedPnL : decimal
+    +AssetAllocation : ObservableCollection<AllocationItem>
+    +RiskMetrics : RiskMetrics
+    --
+    +RefreshCommand : DelegateCommand
+    --
+    -LoadPortfolioSummary()
+    -CalculateMetrics()
+    -UpdateAssetAllocation()
+}
+
+class PositionListViewModel {
+    -positionService : IPositionService
+    --
+    +Positions : ObservableCollection<Position>
+    +SelectedPosition : Position
+    +SortBy : PositionSortField
+    +FilterText : string
+    --
+    +RefreshCommand : DelegateCommand
+    +DrillDownCommand : DelegateCommand<Position>
+    +ClosePositionCommand : DelegateCommand<Position>
+    --
+    -LoadPositions()
+    -DrillDown(position)
+    -ApplyFilter()
+}
+
+class PortfolioChartViewModel {
+    -portfolioService : IPortfolioService
+    --
+    +ChartType : ChartType
+    +TimeSeries : ObservableCollection<PortfolioSnapshot>
+    +BenchmarkSeries : ObservableCollection<BenchmarkSnapshot>
+    +DateRange : DateRange
+    --
+    +ChangeChartTypeCommand : DelegateCommand<ChartType>
+    +ChangeDateRangeCommand : DelegateCommand<DateRange>
+    --
+    -LoadChartData()
+    -LoadBenchmarkData()
+}
+
+' 検索・フィルターViewModel
+class SecuritySearchViewModel {
+    -securityService : ISecurityService
+    --
+    +SearchText : string
+    +SearchResults : ObservableCollection<Security>
+    +SelectedSecurity : Security
+    +Markets : ObservableCollection<string>
+    +SelectedMarkets : List<string>
+    +Sectors : ObservableCollection<string>
+    +SelectedSectors : List<string>
+    +Favorites : ObservableCollection<Security>
+    --
+    +SearchCommand : DelegateCommand
+    +AddToFavoritesCommand : DelegateCommand<Security>
+    +RemoveFromFavoritesCommand : DelegateCommand<Security>
+    --
+    -Search()
+    -LoadFavorites()
+    -OnSearchTextChanged()
+}
+
+class OrderFilterPanelViewModel {
+    -filterPresetService : IFilterPresetService
+    --
+    +FilterCriteria : OrderFilterCriteria
+    +DateRange : DateRange
+    +StatusFilters : ObservableCollection<OrderStatus>
+    +SavedPresets : ObservableCollection<FilterPreset>
+    +SelectedPreset : FilterPreset
+    --
+    +ApplyFilterCommand : DelegateCommand
+    +SavePresetCommand : DelegateCommand
+    +LoadPresetCommand : DelegateCommand<FilterPreset>
+    +DeletePresetCommand : DelegateCommand<FilterPreset>
+    --
+    -ApplyFilter()
+    -SavePreset()
+    -LoadPresets()
+}
+
+' 詳細表示ViewModel
+class OrderDetailViewModel {
+    -orderService : IOrderService
+    -executionService : IExecutionService
+    --
+    +Order : Order
+    +OrderHistory : ObservableCollection<OrderAudit>
+    +RelatedExecutions : ObservableCollection<Execution>
+    +CanEdit : bool
+    +CanCancel : bool
+    --
+    +EditCommand : DelegateCommand
+    +CancelCommand : DelegateCommand
+    +RefreshCommand : DelegateCommand
+    --
+    -LoadOrderDetail(orderId)
+    -LoadOrderHistory()
+    -LoadRelatedExecutions()
+}
+
+class SecurityDetailViewModel {
+    -securityService : ISecurityService
+    -marketDataService : IMarketDataService
+    --
+    +Security : Security
+    +CurrentPrice : decimal
+    +PriceChange : decimal
+    +PriceChangePercent : decimal
+    +ChartData : ObservableCollection<PricePoint>
+    +News : ObservableCollection<NewsItem>
+    --
+    +RefreshCommand : DelegateCommand
+    --
+    -LoadSecurityDetail(securityId)
+    -LoadPriceData()
+    -LoadNews()
+    -SubscribeToRealTimeUpdates()
+}
+
+' ステータス・通知ViewModel
+class NotificationPanelViewModel {
+    -notificationService : INotificationService
+    --
+    +Notifications : ObservableCollection<Notification>
+    +UnreadCount : int
+    +MaxVisibleCount : int
+    --
+    +MarkAsReadCommand : DelegateCommand<Notification>
+    +DismissCommand : DelegateCommand<Notification>
+    +ShowHistoryCommand : DelegateCommand
+    +ClearAllCommand : DelegateCommand
+    --
+    -OnNewNotification(notification)
+    -MarkAsRead(notification)
+    -ShowHistory()
+}
+
+class MarketStatusBarViewModel {
+    -marketDataService : IMarketDataService
+    --
+    +MarketStatus : MarketStatus
+    +MajorIndices : ObservableCollection<Index>
+    +SystemTime : DateTime
+    +IsMarketOpen : bool
+    --
+    -UpdateMarketStatus()
+    -UpdateIndices()
+    -SubscribeToMarketUpdates()
+}
+
+' 継承関係
+ViewModelBase <|-- MainWindowViewModel
+ViewModelBase <|-- OrderEntryViewModel
+ViewModelBase <|-- OrderListViewModel
+ViewModelBase <|-- QuickOrderViewModel
+ViewModelBase <|-- ExecutionListViewModel
+ViewModelBase <|-- TradeHistoryViewModel
+ViewModelBase <|-- PortfolioSummaryViewModel
+ViewModelBase <|-- PositionListViewModel
+ViewModelBase <|-- PortfolioChartViewModel
+ViewModelBase <|-- SecuritySearchViewModel
+ViewModelBase <|-- OrderFilterPanelViewModel
+ViewModelBase <|-- OrderDetailViewModel
+ViewModelBase <|-- SecurityDetailViewModel
+ViewModelBase <|-- NotificationPanelViewModel
+ViewModelBase <|-- MarketStatusBarViewModel
+
+IGridViewModel <|.. ExecutionListViewModel
+IGridViewModel <|.. TradeHistoryViewModel
+
+' 関連
+MainWindowViewModel o-- OrderListViewModel
+MainWindowViewModel o-- PortfolioSummaryViewModel
+OrderEntryViewModel ..> OrderListViewModel : publishes events
+OrderListViewModel ..> OrderDetailViewModel : navigates to
+
+note right of ViewModelBase
+  <b>Prism ViewModelBase</b>
+  - INotifyPropertyChanged実装
+  - IEventAggregator統合
+  - IRegionManager統合
+  - ナビゲーションサポート
+end note
+
+note bottom of OrderListViewModel
+  <b>リアルタイム更新</b>
+  EventAggregatorを使用して
+  他のViewModelからの
+  注文更新イベントを購読
+end note
+
+@enduml

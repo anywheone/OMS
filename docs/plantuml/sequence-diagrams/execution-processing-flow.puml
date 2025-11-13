@@ -1,0 +1,177 @@
+@startuml Execution_Processing_Flow
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 200
+skinparam sequenceParticipant underline
+
+participant "取引所システム" as Exchange
+participant "Spring Boot\nREST API" as API
+participant "ExecutionService" as ExecSvc
+database "MySQL\nDatabase" as DB
+participant "WebSocket\nServer" as WS
+participant "MarketDataService" as MarketData
+participant "NotificationService" as Notification
+participant "EventAggregator" as Events
+participant "OrderListViewModel" as OrderListVM
+participant "ExecutionListViewModel" as ExecListVM
+participant "PortfolioSummaryViewModel" as PortfolioVM
+participant "UI Controls" as UI
+actor "トレーダー" as Trader
+
+title 約定処理フロー（リアルタイム更新）
+
+== 約定通知受信 ==
+Exchange -> API: 約定通知\n(Execution Report)
+activate API
+note right of Exchange
+  FIX Protocol または
+  取引所独自プロトコル
+end note
+
+API -> API: 約定データパース
+API -> DB: BEGIN TRANSACTION
+activate DB
+
+' 約定レコード作成
+API -> DB: INSERT INTO executions\n(order_id, execution_price,\nexecution_quantity, ...)
+DB --> API: execution_id = 98765
+
+' 注文ステータス更新
+API -> DB: SELECT filled_quantity, quantity\nFROM orders WHERE order_id = ?
+DB --> API: filled_qty=500, total_qty=1000
+
+API -> API: 新約定数量加算\nnew_filled = 500 + 300 = 800
+
+alt 完全約定 (filled_qty == total_qty)
+    API -> DB: UPDATE orders SET\nstatus='FILLED',\nfilled_quantity=1000,\naverage_price=計算値
+else 部分約定
+    API -> DB: UPDATE orders SET\nstatus='PARTIAL',\nfilled_quantity=800,\naverage_price=計算値
+end
+
+' ポジション更新
+API -> DB: SELECT * FROM positions\nWHERE user_id=? AND security_id=?
+alt ポジション存在
+    API -> DB: UPDATE positions SET\nquantity = quantity + 300,\naverage_cost = 再計算,\nupdated_at = NOW()
+else 新規ポジション
+    API -> DB: INSERT INTO positions\n(user_id, security_id, quantity, ...)
+end
+
+' 取引履歴記録
+API -> DB: INSERT INTO trade_history\n(order_id, execution_id, ...)
+
+' 監査ログ
+API -> DB: INSERT INTO order_audit_log\n(order_id, action='FILL', ...)
+
+API -> DB: COMMIT
+deactivate DB
+
+API --> Exchange: ACK
+deactivate API
+
+== リアルタイム通知配信 ==
+API -> WS: 約定イベント配信\n(ExecutionEvent)
+activate WS
+WS -> WS: WebSocket接続中の\nクライアントを特定
+WS --> MarketData: WebSocket Message
+deactivate WS
+
+MarketData -> MarketData: OnMessageReceived(message)
+activate MarketData
+MarketData -> MarketData: JSON デシリアライズ
+MarketData -> Events: Publish(ExecutionReceivedEvent)
+activate Events
+deactivate MarketData
+
+== 画面更新（発注一覧） ==
+Events -> OrderListVM: OnExecutionReceived(event)
+activate OrderListVM
+OrderListVM -> OrderListVM: 該当注文を検索
+OrderListVM -> OrderListVM: Order.Status = "PARTIAL"\nOrder.FilledQuantity = 800
+
+OrderListVM -> UI: NotifyPropertyChanged
+activate UI
+UI -> UI: グリッド行更新\n(ステータス色変更)
+UI --> Trader: 注文ステータス更新表示\n(黄色→部分約定)
+deactivate UI
+deactivate OrderListVM
+
+== 画面更新（約定一覧） ==
+Events -> ExecListVM: OnExecutionReceived(event)
+activate ExecListVM
+ExecListVM -> ExecSvc: GetExecutionByIdAsync(98765)
+activate ExecSvc
+ExecSvc -> API: GET /api/executions/98765
+activate API
+API -> DB: SELECT * FROM executions\nWHERE execution_id = 98765
+activate DB
+DB --> API: ExecutionRecord
+deactivate DB
+API --> ExecSvc: ExecutionDto
+deactivate API
+ExecSvc --> ExecListVM: Execution
+deactivate ExecSvc
+
+ExecListVM -> ExecListVM: Executions.Insert(0, execution)\n(最新を先頭に追加)
+ExecListVM -> UI: NotifyCollectionChanged
+activate UI
+UI -> UI: グリッド行追加\n(アニメーション効果)
+UI --> Trader: 新規約定を一覧に表示
+deactivate UI
+deactivate ExecListVM
+
+== 画面更新（ポートフォリオ） ==
+Events -> PortfolioVM: OnExecutionReceived(event)
+activate PortfolioVM
+PortfolioVM -> PortfolioVM: RefreshCommand.Execute()
+PortfolioVM -> "PositionService" as PosSvc: GetPositionsAsync(userId)
+activate PosSvc
+PosSvc -> API: GET /api/positions?userId=123
+activate API
+API -> DB: SELECT * FROM positions\nWHERE user_id = 123
+activate DB
+DB --> API: PositionRecords
+deactivate DB
+API --> PosSvc: PositionDto[]
+deactivate API
+PosSvc --> PortfolioVM: List<Position>
+deactivate PosSvc
+
+PortfolioVM -> PortfolioVM: CalculateMetrics()\n- 総資産額再計算\n- 損益再計算\n- アセットアロケーション更新
+
+PortfolioVM -> UI: NotifyPropertyChanged\n(TotalAssets, DailyPnL, etc.)
+activate UI
+UI -> UI: サマリー表示更新\nチャート再描画
+UI --> Trader: ポートフォリオ更新表示
+deactivate UI
+deactivate PortfolioVM
+
+== 通知表示 ==
+Events -> Notification: OnExecutionReceived(event)
+activate Notification
+Notification -> Notification: CreateNotification(\n"約定完了",\n"銘柄: トヨタ自動車\n数量: 300株\n価格: ¥2,500")
+
+Notification -> Events: Publish(NotificationEvent)
+Events -> "NotificationPanelViewModel" as NotifyVM: OnNewNotification(event)
+deactivate Events
+activate NotifyVM
+NotifyVM -> NotifyVM: Notifications.Insert(0, notification)
+NotifyVM -> UI: NotifyCollectionChanged
+activate UI
+UI -> UI: 通知パネルスライドイン\n(アニメーション)
+UI -> UI: 3秒後に自動非表示
+UI --> Trader: 約定通知ポップアップ表示\n(成功音再生)
+deactivate UI
+deactivate NotifyVM
+deactivate Notification
+
+note over Exchange, Trader
+  <b>ポイント</b>
+  1. WebSocketでリアルタイム約定通知
+  2. EventAggregatorで全ViewModelに一斉配信
+  3. トランザクションで整合性担保
+  4. 複数画面を同時更新（注文一覧、約定一覧、ポートフォリオ）
+  5. 通知パネルでユーザーに即座にフィードバック
+end note
+
+@enduml

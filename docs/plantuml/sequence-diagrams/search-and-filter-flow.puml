@@ -1,0 +1,269 @@
+@startuml Search_And_Filter_Flow
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 200
+skinparam sequenceParticipant underline
+
+actor "トレーダー" as Trader
+participant "SecuritySearchControl" as SearchUI
+participant "SecuritySearchViewModel" as SearchVM
+participant "OrderFilterPanel" as FilterUI
+participant "OrderFilterPanelViewModel" as FilterVM
+participant "SecurityService" as SecSvc
+participant "OrderService" as OrderSvc
+participant "UserSettingsService" as SettingsSvc
+participant "Spring Boot\nREST API" as API
+database "MySQL\nDatabase" as DB
+participant "OrderListGrid" as Grid
+
+title 検索・フィルター処理フロー
+
+== 銘柄検索（インクリメンタルサーチ） ==
+
+Trader -> SearchUI: 検索テキスト入力\n"トヨタ"
+activate SearchUI
+SearchUI -> SearchVM: SearchText = "トヨタ"
+activate SearchVM
+
+SearchVM -> SearchVM: タイマー開始\n(300ms デバウンス)
+note right of SearchVM
+  ユーザーが入力を止めてから
+  300ms後に検索実行
+  (パフォーマンス最適化)
+end note
+
+... 300ms 待機 ...
+
+SearchVM -> SearchVM: OnSearchTextChanged()
+SearchVM -> SecSvc: SearchSecuritiesAsync("トヨタ")
+activate SecSvc
+
+' キャッシュチェック
+SecSvc -> SecSvc: キャッシュ確認\nkey="search:トヨタ"
+alt キャッシュヒット
+    SecSvc -> SecSvc: キャッシュから取得
+    SecSvc --> SearchVM: List<Security> (キャッシュ)
+    note right of SecSvc: 5分間キャッシュ
+else キャッシュミス
+    SecSvc -> API: GET /api/securities/search?query=トヨタ
+    activate API
+    API -> DB: SELECT * FROM securities\nWHERE security_name LIKE '%トヨタ%'\nOR security_code LIKE 'トヨタ%'\nLIMIT 50
+    activate DB
+    DB --> API: SecurityRecords (10件)
+    deactivate DB
+    API --> SecSvc: SecurityDto[]
+    deactivate API
+    SecSvc -> SecSvc: キャッシュに保存
+    SecSvc --> SearchVM: List<Security>
+end
+deactivate SecSvc
+
+SearchVM -> SearchVM: SearchResults.Clear()
+SearchVM -> SearchVM: SearchResults.AddRange(results)
+
+SearchVM -> SearchUI: NotifyCollectionChanged
+SearchUI -> SearchUI: リストボックス更新
+SearchUI --> Trader: 検索結果表示\n(10件)
+deactivate SearchVM
+deactivate SearchUI
+
+== 市場・セクターフィルター ==
+
+Trader -> SearchUI: 市場フィルター選択\n"東証プライム"
+activate SearchUI
+SearchUI -> SearchVM: SelectedMarkets.Add("東証プライム")
+activate SearchVM
+
+SearchVM -> SearchVM: ApplyFilters()
+SearchVM -> SearchVM: results.Where(s => \nSelectedMarkets.Contains(s.Market))
+
+SearchVM -> SearchUI: SearchResults更新
+SearchUI --> Trader: フィルター済み結果表示\n(5件)
+deactivate SearchVM
+deactivate SearchUI
+
+Trader -> SearchUI: セクターフィルター選択\n"自動車"
+activate SearchUI
+SearchUI -> SearchVM: SelectedSectors.Add("自動車")
+activate SearchVM
+
+SearchVM -> SearchVM: ApplyFilters()
+SearchVM -> SearchVM: results.Where(s => \nSelectedSectors.Contains(s.Sector))
+
+SearchVM -> SearchUI: SearchResults更新
+SearchUI --> Trader: さらに絞り込まれた結果\n(3件)
+deactivate SearchVM
+deactivate SearchUI
+
+== お気に入り追加 ==
+
+Trader -> SearchUI: 銘柄を右クリック\n→「お気に入りに追加」
+activate SearchUI
+SearchUI -> SearchVM: AddToFavoritesCommand.Execute(security)
+activate SearchVM
+
+SearchVM -> "FavoriteSecurityService" as FavSvc: AddToFavoritesAsync(userId, securityId)
+activate FavSvc
+FavSvc -> API: POST /api/favorites\n{userId, securityId}
+activate API
+API -> DB: INSERT INTO favorite_securities\n(user_id, security_id, sort_order)
+activate DB
+DB --> API: favorite_id
+deactivate DB
+API --> FavSvc: Success
+deactivate API
+FavSvc --> SearchVM: Success
+deactivate FavSvc
+
+SearchVM -> SearchVM: Favorites.Add(security)
+SearchVM -> SearchUI: Favorites更新
+SearchUI --> Trader: お気に入りタブに追加
+deactivate SearchVM
+deactivate SearchUI
+
+== 高度な発注フィルター ==
+
+Trader -> FilterUI: フィルターパネルを開く
+activate FilterUI
+FilterUI -> FilterVM: Initialize()
+activate FilterVM
+
+FilterVM -> SettingsSvc: GetFilterPresetsAsync(userId)
+activate SettingsSvc
+SettingsSvc -> API: GET /api/user-settings/filter-presets?userId=123
+activate API
+API -> DB: SELECT * FROM search_presets\nWHERE user_id = 123
+activate DB
+DB --> API: PresetRecords
+deactivate DB
+API --> SettingsSvc: FilterPresetDto[]
+deactivate API
+SettingsSvc --> FilterVM: List<FilterPreset>
+deactivate SettingsSvc
+
+FilterVM -> FilterVM: SavedPresets = presets
+FilterVM --> FilterUI: プリセット一覧表示
+FilterUI --> Trader: フィルター画面表示
+deactivate FilterVM
+deactivate FilterUI
+
+== 日付範囲フィルター ==
+
+Trader -> FilterUI: 日付範囲選択\n開始日: 2024-01-01\n終了日: 2024-01-31
+activate FilterUI
+FilterUI -> FilterVM: DateRange = new DateRange(start, end)
+activate FilterVM
+FilterVM --> FilterUI: バインディング更新
+deactivate FilterVM
+deactivate FilterUI
+
+== ステータスフィルター ==
+
+Trader -> FilterUI: ステータスチェックボックス選択\n☑ 新規\n☑ 部分約定\n☐ 約定済
+activate FilterUI
+FilterUI -> FilterVM: StatusFilters = ["NEW", "PARTIAL"]
+activate FilterVM
+FilterVM --> FilterUI: バインディング更新
+deactivate FilterVM
+deactivate FilterUI
+
+== フィルター適用 ==
+
+Trader -> FilterUI: [フィルター適用]ボタンクリック
+activate FilterUI
+FilterUI -> FilterVM: ApplyFilterCommand.Execute()
+activate FilterVM
+
+FilterVM -> FilterVM: BuildFilterCriteria()
+FilterVM -> OrderSvc: GetOrdersAsync(filterCriteria)
+activate OrderSvc
+
+OrderSvc -> API: GET /api/orders?startDate=2024-01-01\n&endDate=2024-01-31\n&status=NEW,PARTIAL
+activate API
+API -> DB: SELECT * FROM orders\nWHERE order_date BETWEEN ? AND ?\nAND status IN ('NEW', 'PARTIAL')
+activate DB
+DB --> API: OrderRecords (25件)
+deactivate DB
+API --> OrderSvc: OrderDto[]
+deactivate API
+OrderSvc --> FilterVM: List<Order>
+deactivate OrderSvc
+
+FilterVM -> "EventAggregator" as Events: Publish(FilterAppliedEvent)
+activate Events
+Events -> "OrderListViewModel" as OrderListVM: OnFilterApplied(event)
+deactivate Events
+activate OrderListVM
+
+OrderListVM -> OrderListVM: Orders.Clear()
+OrderListVM -> OrderListVM: Orders.AddRange(filteredOrders)
+OrderListVM -> Grid: NotifyCollectionChanged
+activate Grid
+Grid -> Grid: グリッド再描画
+Grid --> Trader: フィルター済み発注一覧表示\n(25件)
+deactivate Grid
+deactivate OrderListVM
+
+FilterVM --> FilterUI: フィルター適用完了
+deactivate FilterVM
+FilterUI --> Trader: 適用完了メッセージ
+deactivate FilterUI
+
+== フィルター条件をプリセット保存 ==
+
+Trader -> FilterUI: [プリセット保存]ボタンクリック
+activate FilterUI
+FilterUI --> Trader: プリセット名入力ダイアログ
+Trader -> FilterUI: プリセット名入力\n"1月の未約定注文"
+
+FilterUI -> FilterVM: SavePresetCommand.Execute("1月の未約定注文")
+activate FilterVM
+
+FilterVM -> FilterVM: preset = new FilterPreset {\n  Name = "1月の未約定注文",\n  Criteria = JSON.Serialize(FilterCriteria)\n}
+
+FilterVM -> SettingsSvc: SaveFilterPresetAsync(preset)
+activate SettingsSvc
+SettingsSvc -> API: POST /api/user-settings/filter-presets\n{name, criteria}
+activate API
+API -> DB: INSERT INTO search_presets\n(user_id, preset_name, search_criteria)
+activate DB
+DB --> API: preset_id
+deactivate DB
+API --> SettingsSvc: FilterPresetDto
+deactivate API
+SettingsSvc --> FilterVM: SavedPreset
+deactivate SettingsSvc
+
+FilterVM -> FilterVM: SavedPresets.Add(preset)
+FilterVM --> FilterUI: プリセット一覧更新
+deactivate FilterVM
+FilterUI --> Trader: 保存完了メッセージ
+deactivate FilterUI
+
+== プリセット読み込み ==
+
+Trader -> FilterUI: プリセット選択\n"1月の未約定注文"
+activate FilterUI
+FilterUI -> FilterVM: LoadPresetCommand.Execute(preset)
+activate FilterVM
+
+FilterVM -> FilterVM: FilterCriteria = \nJSON.Deserialize(preset.Criteria)
+FilterVM -> FilterVM: DateRange = criteria.DateRange
+FilterVM -> FilterVM: StatusFilters = criteria.StatusFilters
+
+FilterVM -> FilterUI: 全フィールド更新
+FilterUI --> Trader: フィルター条件が復元される
+deactivate FilterVM
+deactivate FilterUI
+
+note over Trader, DB
+  <b>ポイント</b>
+  1. インクリメンタルサーチでリアルタイム検索
+  2. デバウンスでAPI呼び出し削減
+  3. キャッシュで検索パフォーマンス向上
+  4. プリセット機能で頻繁に使う条件を保存
+  5. EventAggregatorで複数画面連携
+end note
+
+@enduml
