@@ -1,0 +1,48 @@
+<UserControl x:Class="OMS.Client.Controls.ValidatedTextBox"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- テキストボックス -->
+        <TextBox Grid.Row="0"
+                 Text="{Binding Text, ElementName=Root, UpdateSourceTrigger=PropertyChanged}"
+                 Padding="8,6"
+                 FontSize="14">
+            <TextBox.Style>
+                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasError, ElementName=Root}" Value="True">
+                            <Setter Property="BorderBrush" Value="#E53935"/>
+                            <Setter Property="BorderThickness" Value="2"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBox.Style>
+        </TextBox>
+
+        <!-- エラーメッセージ -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding ErrorMessage, ElementName=Root}"
+                   Foreground="#E53935"
+                   FontSize="11"
+                   Margin="2,4,0,0">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasError, ElementName=Root}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+    </Grid>
+</UserControl>

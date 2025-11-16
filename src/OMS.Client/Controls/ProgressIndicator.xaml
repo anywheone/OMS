@@ -1,0 +1,22 @@
+<UserControl x:Class="OMS.Client.Controls.ProgressIndicator"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+    <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="15">
+        <StackPanel>
+            <TextBlock Text="{Binding Message, ElementName=Root}"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,10"/>
+            <ProgressBar Value="{Binding Progress, ElementName=Root}"
+                         Maximum="100"
+                         Height="8"
+                         IsIndeterminate="{Binding IsIndeterminate, ElementName=Root}"/>
+            <TextBlock Text="{Binding Progress, ElementName=Root, StringFormat='{}{0:0}%'}"
+                       HorizontalAlignment="Right"
+                       FontSize="12"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Margin="0,5,0,0"/>
+        </StackPanel>
+    </Border>
+</UserControl>

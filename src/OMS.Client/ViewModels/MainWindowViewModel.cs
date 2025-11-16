@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using Prism.Mvvm;
 using Prism.Commands;
+using Prism.Ioc;
 using Microsoft.Extensions.Logging;
 using OMS.Client.Models;
 using OMS.Client.Services;
@@ -16,6 +17,7 @@ public class MainWindowViewModel : BindableBase
 {
     private readonly ILogger<MainWindowViewModel>? _logger;
     private readonly OrderService? _orderService;
+    private readonly IContainerProvider? _container;
 
     private string _securityId = "1001";
     private string _side = "BUY";
@@ -31,17 +33,20 @@ public class MainWindowViewModel : BindableBase
         PlaceOrderCommand = new DelegateCommand(async () => await PlaceOrderAsync());
         RefreshOrdersCommand = new DelegateCommand(async () => await LoadOrdersAsync());
         ClearCommand = new DelegateCommand(ClearForm);
+        ShowControlLibraryCommand = new DelegateCommand(ShowControlLibrary);
     }
 
-    public MainWindowViewModel(ILogger<MainWindowViewModel> logger, OrderService orderService)
+    public MainWindowViewModel(ILogger<MainWindowViewModel> logger, OrderService orderService, IContainerProvider container)
     {
         _logger = logger;
         _orderService = orderService;
+        _container = container;
         Orders = new ObservableCollection<OrderModel>();
 
         PlaceOrderCommand = new DelegateCommand(async () => await PlaceOrderAsync());
         RefreshOrdersCommand = new DelegateCommand(async () => await LoadOrdersAsync());
         ClearCommand = new DelegateCommand(ClearForm);
+        ShowControlLibraryCommand = new DelegateCommand(ShowControlLibrary);
 
         _logger?.LogInformation("MainWindowViewModel initialized");
 
@@ -119,6 +124,7 @@ public class MainWindowViewModel : BindableBase
     public DelegateCommand PlaceOrderCommand { get; }
     public DelegateCommand RefreshOrdersCommand { get; }
     public DelegateCommand ClearCommand { get; }
+    public DelegateCommand ShowControlLibraryCommand { get; }
 
     #endregion
 
@@ -222,6 +228,27 @@ public class MainWindowViewModel : BindableBase
         Quantity = "100";
         Price = "";
         TimeInForce = "DAY";
+    }
+
+    private void ShowControlLibrary()
+    {
+        try
+        {
+            if (_container == null)
+            {
+                MessageBox.Show("コンテナが初期化されていません。", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var window = _container.Resolve<Views.ControlLibraryWindow>();
+            window.Show();
+            _logger?.LogInformation("コントロールライブラリウィンドウを表示しました");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "コントロールライブラリウィンドウの表示に失敗しました");
+            MessageBox.Show($"コントロールライブラリウィンドウの表示に失敗しました。\n{ex.Message}", "エラー", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     #endregion

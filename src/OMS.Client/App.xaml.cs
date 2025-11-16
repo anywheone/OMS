@@ -68,9 +68,11 @@ public partial class App : PrismApplication
 
         // ViewModelsの登録
         containerRegistry.Register<ViewModels.MainWindowViewModel>();
+        containerRegistry.Register<ViewModels.ControlLibraryViewModel>();
 
         // Viewsの登録
         containerRegistry.RegisterForNavigation<MainWindow>();
+        containerRegistry.RegisterForNavigation<ControlLibraryWindow>();
     }
 
     protected override void OnExit(ExitEventArgs e)

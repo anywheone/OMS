@@ -29,6 +29,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0"
@@ -38,12 +39,52 @@
                            Foreground="White"
                            VerticalAlignment="Center"/>
 
-                <TextBlock Grid.Column="2"
+                <Button Grid.Column="2"
+                        Content="📚 コントロール一覧"
+                        FontSize="13"
+                        Foreground="White"
+                        Background="Transparent"
+                        BorderBrush="White"
+                        BorderThickness="1"
+                        Padding="15,5"
+                        Margin="0,0,15,0"
+                        Cursor="Hand"
+                        VerticalAlignment="Center"
+                        Command="{Binding ShowControlLibraryCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="White"/>
+                                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter Property="Opacity" Value="0.8"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <TextBlock Grid.Column="3"
                            Text="デモモード"
                            FontSize="14"
                            Foreground="White"
                            VerticalAlignment="Center"
-                           Margin="20,0,0,0"/>
+                           Margin="0,0,0,0"/>
             </Grid>
         </Border>
 
